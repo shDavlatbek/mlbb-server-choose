@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">MLBB Server Lock</string>
+    <string name="subtitle">Блокирует все игровые серверы Mobile Legends, кроме серверов выбранной страны</string>
+
+    <string name="allowed_country">Разрешённая страна</string>
+    <string name="no_country">Не выбрана — фильтр только показывает серверы</string>
+    <string name="choose_country">Выбрать страну</string>
+
+    <string name="mode_title">Режим блокировки</string>
+    <string name="mode_strict">Строгий — весь игровой трафик (UDP, пинг)</string>
+    <string name="mode_ports">Мягкий — только известные порты MLBB</string>
+    <string name="mode_hint">Строгий режим блокирует любой UDP и пинг к серверам других стран — так игра не сможет «увести» вас в Европу. Лобби, вход, магазин и загрузки (TCP/HTTPS) не трогаются. Если что-то перестало работать (например, голосовой чат), включите мягкий режим.</string>
+
+    <string name="start">Включить фильтр</string>
+    <string name="stop">Выключить</string>
+    <string name="status_off">Фильтр выключен</string>
+    <string name="status_on">Фильтр работает</string>
+    <string name="status_watch">Работает в режиме наблюдения (страна не выбрана)</string>
+    <string name="status_blocked">Заблокировано пакетов: %1$d</string>
+    <string name="status_flows">Соединений: UDP %1$d, TCP %2$d</string>
+    <string name="match_now">🎮 Матч идёт через %1$s %2$s</string>
+    <string name="match_none">Матч сейчас не идёт</string>
+    <string name="error_prefix">Ошибка: %1$s</string>
+
+    <string name="servers_title">Серверы игры</string>
+    <string name="servers_empty">Пока пусто. Включите фильтр и зайдите в игру — здесь появятся серверы, к которым она подключается (страна, порты, пинг).</string>
+    <string name="show_all">Показать всё</string>
+    <string name="show_game">Только игровые</string>
+    <string name="clear">Очистить</string>
+    <string name="v_open">ОТКРЫТ</string>
+    <string name="v_blocked">БЛОК</string>
+    <string name="v_manual">ВРУЧНУЮ</string>
+    <string name="v_normal">НЕ ИГРА</string>
+    <string name="v_watch">—</string>
+    <string name="seen_before">ранее %1$s</string>
+    <string name="ping_ms">%1$d мс</string>
+
+    <string name="log_title">Журнал</string>
+    <string name="log_empty">Событий пока нет</string>
+
+    <string name="rules_button">Ручные правила (IP)</string>
+    <string name="rules_title">Ручные правила</string>
+    <string name="rules_allow">Всегда разрешать (IP или подсеть, по одному в строке):</string>
+    <string name="rules_block">Всегда блокировать:</string>
+    <string name="save">Сохранить</string>
+    <string name="cancel">Отмена</string>
+
+    <string name="server_allow">Всегда разрешать этот IP</string>
+    <string name="server_block">Всегда блокировать этот IP</string>
+    <string name="server_allow_country">Разрешить всю страну: %1$s</string>
+    <string name="server_unrule">Убрать из ручных правил</string>
+    <string name="server_copy">Скопировать IP</string>
+    <string name="copied">Скопировано</string>
+
+    <string name="country_title">Выбор страны</string>
+    <string name="search_hint">Поиск страны…</string>
+    <string name="seen_in_game">замечено серверов: %1$d</string>
+    <string name="done">Готово</string>
+    <string name="reset">Сбросить</string>
+
+    <string name="footer">Страна по IP: база IP to Country Lite от DB-IP.com (CC BY 4.0), версия %1$s. Приложение работает как локальный VPN только для Mobile Legends: трафик никуда не отправляется, всё фильтруется на телефоне.</string>
+
+    <string name="err_no_game">Mobile Legends не установлена</string>
+    <string name="err_no_permission">Нет разрешения на VPN</string>
+    <string name="warn_no_game">Mobile Legends не найдена на телефоне. Поддерживаются: com.mobile.legends, com.mobilelegends.hwag, com.mobilelegends.mi</string>
+
+    <string name="notif_channel">Фильтр серверов</string>
+    <string name="notif_title">MLBB Server Lock включён</string>
+    <string name="notif_starting">Запуск…</string>
+    <string name="notif_watch">наблюдение</string>
+    <string name="notif_blocked">заблокировано %1$d</string>
+    <string name="notif_match">матч: %1$s %2$s</string>
+
+    <string name="event_started">Фильтр включён, разрешено: %1$s</string>
+    <string name="event_started_watch">Фильтр включён в режиме наблюдения</string>
+    <string name="event_stopped">Фильтр выключен</string>
+    <string name="event_rules">Настройки изменены, проверяю активные соединения</string>
+
+    <string name="tip_restart">Совет: после смены страны перезапустите матч-поиск, а лучше саму игру.</string>
+</resources>
