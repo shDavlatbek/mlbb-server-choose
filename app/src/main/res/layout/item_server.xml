@@ -24,7 +24,7 @@
             android:id="@+id/line1"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:maxLines="1"
+            android:maxLines="2"
             android:ellipsize="end"
             android:textColor="@color/text"
             android:textSize="15sp" />
@@ -32,7 +32,8 @@
             android:id="@+id/line2"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:maxLines="2"
+            android:layout_marginTop="2dp"
+            android:maxLines="3"
             android:textColor="@color/text2"
             android:textSize="12sp" />
     </LinearLayout>

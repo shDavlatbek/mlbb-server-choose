@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">MLBB Server Lock</string>
-    <string name="subtitle">Блокирует все игровые серверы Mobile Legends, кроме серверов выбранной страны</string>
+    <string name="subtitle">Блокирует все игровые серверы Mobile Legends, кроме серверов выбранной страны и города</string>
 
-    <string name="allowed_country">Разрешённая страна</string>
+    <string name="allowed_country">Разрешённая страна и город</string>
     <string name="no_country">Не выбрана — фильтр только показывает серверы</string>
     <string name="choose_country">Выбрать страну</string>
 
@@ -59,7 +59,7 @@
     <string name="done">Готово</string>
     <string name="reset">Сбросить</string>
 
-    <string name="footer">Страна по IP: база IP to Country Lite от DB-IP.com (CC BY 4.0), версия %1$s. Приложение работает как локальный VPN только для Mobile Legends: трафик никуда не отправляется, всё фильтруется на телефоне.</string>
+    <string name="footer">Страна и город по IP: базы IP to Country Lite и IP to City Lite от DB-IP.com (CC BY 4.0), версия %1$s. Приложение работает как локальный VPN только для Mobile Legends: трафик никуда не отправляется, всё фильтруется на телефоне.</string>
 
     <string name="err_no_game">Mobile Legends не установлена</string>
     <string name="err_no_permission">Нет разрешения на VPN</string>
@@ -78,4 +78,23 @@
     <string name="event_rules">Настройки изменены, проверяю активные соединения</string>
 
     <string name="tip_restart">Совет: после смены страны перезапустите матч-поиск, а лучше саму игру.</string>
+
+    <string name="choose_city">Выбрать город</string>
+    <string name="all_cities">все города</string>
+    <string name="city_title">Город — %1$s</string>
+    <string name="city_hint">Отметьте города, серверы которых нужно оставить открытыми. Если ничего не отмечено — открыта вся страна. Сверху — города, где уже замечены серверы игры.</string>
+    <string name="city_loading">Загрузка базы городов…</string>
+    <string name="city_region">%1$s (регион)</string>
+    <string name="city_error">Не удалось загрузить базу городов: %1$s</string>
+    <string name="whole_country">Вся страна</string>
+    <string name="seen_ping">замечено серверов: %1$d · пинг от %2$d мс</string>
+    <string name="ping_button">Пинг</string>
+    <string name="ping_lost">нет ответа</string>
+    <string name="ping_value">📶 %1$d мс</string>
+    <string name="ping_none">📶 нет ответа</string>
+    <string name="pinging">Измеряю пинг…</string>
+    <string name="server_allow_city">Оставить только город: %1$s</string>
+    <string name="need_country">Сначала выберите страну</string>
+    <string name="pick_country_for_city">Для какой страны выбрать город?</string>
+    <string name="search_city_hint">Поиск города…</string>
 </resources>

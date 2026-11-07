@@ -41,11 +41,21 @@
                 android:textColor="@color/text"
                 android:textSize="20sp"
                 android:textStyle="bold" />
-            <Button
-                android:id="@+id/btn_country"
-                style="@style/TextButton"
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
                 android:layout_marginTop="10dp"
-                android:text="@string/choose_country" />
+                android:orientation="horizontal">
+                <Button
+                    android:id="@+id/btn_country"
+                    style="@style/TextButton"
+                    android:text="@string/choose_country" />
+                <Button
+                    android:id="@+id/btn_city"
+                    style="@style/TextButton"
+                    android:layout_marginStart="8dp"
+                    android:text="@string/choose_city" />
+            </LinearLayout>
         </LinearLayout>
 
         <!-- mode -->
@@ -107,30 +117,43 @@
 
         <!-- servers -->
         <LinearLayout style="@style/Card">
+            <TextView style="@style/Label" android:text="@string/servers_title" />
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
                 android:gravity="center_vertical"
                 android:orientation="horizontal">
-                <TextView
-                    style="@style/Label"
-                    android:layout_width="0dp"
-                    android:layout_weight="1"
-                    android:text="@string/servers_title" />
+                <Button
+                    android:id="@+id/btn_ping"
+                    style="@style/TextButton"
+                    android:layout_height="36dp"
+                    android:textSize="13sp"
+                    android:text="@string/ping_button" />
                 <Button
                     android:id="@+id/btn_show"
                     style="@style/TextButton"
-                    android:layout_height="34dp"
+                    android:layout_height="36dp"
+                    android:layout_marginStart="6dp"
                     android:textSize="13sp"
                     android:text="@string/show_all" />
                 <Button
                     android:id="@+id/btn_clear"
                     style="@style/TextButton"
-                    android:layout_height="34dp"
+                    android:layout_height="36dp"
                     android:layout_marginStart="6dp"
                     android:textSize="13sp"
                     android:text="@string/clear" />
             </LinearLayout>
+            <TextView
+                android:id="@+id/ping_status"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="6dp"
+                android:text="@string/pinging"
+                android:textColor="@color/text2"
+                android:textSize="12sp"
+                android:visibility="gone" />
             <TextView
                 android:id="@+id/servers_empty"
                 android:layout_width="match_parent"

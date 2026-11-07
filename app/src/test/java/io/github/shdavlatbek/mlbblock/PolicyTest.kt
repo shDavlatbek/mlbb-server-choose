@@ -62,6 +62,19 @@ class PolicyTest {
     }
 
     @Test
+    fun cityFilter() {
+        val ru = Ip.parse("95.46.1.1")!!
+        val cfg = FilterConfig(countries = setOf("RU", "UZ"), cities = mapOf("RU" to setOf("St Petersburg")))
+        assertEquals(Verdict.BLOCK_CITY, Policy.decide(cfg, PROTO_UDP, ru, 5501, "RU", "Moscow"))
+        assertEquals(Verdict.BLOCK_CITY, Policy.decide(cfg, PROTO_UDP, ru, 5501, "RU", null)) // unknown city
+        assertEquals(Verdict.ALLOW_COUNTRY, Policy.decide(cfg, PROTO_UDP, ru, 5501, "RU", "St Petersburg"))
+        // no city chosen for UZ: the whole country is open
+        assertEquals(Verdict.ALLOW_COUNTRY, Policy.decide(cfg, PROTO_UDP, uz, 5501, "UZ", "Namangan*"))
+        // lobby traffic is never touched by the city filter
+        assertEquals(Verdict.ALLOW_NORMAL, Policy.decide(cfg, PROTO_TCP, ru, 443, "RU", "Moscow"))
+    }
+
+    @Test
     fun noCountryMeansWatchOnly() {
         assertEquals(Verdict.ALLOW_FILTER_OFF, Policy.decide(FilterConfig(), PROTO_UDP, de, 5501, "DE"))
     }

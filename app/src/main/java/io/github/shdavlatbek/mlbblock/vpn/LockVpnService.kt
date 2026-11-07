@@ -15,20 +15,11 @@ import android.os.Looper
 import android.os.ParcelFileDescriptor
 import io.github.shdavlatbek.mlbblock.R
 import io.github.shdavlatbek.mlbblock.net.Countries
-import io.github.shdavlatbek.mlbblock.net.GeoIp
 import io.github.shdavlatbek.mlbblock.net.Ip
 import io.github.shdavlatbek.mlbblock.ui.MainActivity
 import java.io.FileDescriptor
 import java.net.DatagramSocket
 import java.net.Socket
-
-object Geo {
-    @Volatile private var geo: GeoIp? = null
-
-    fun get(context: Context): GeoIp = geo ?: synchronized(this) {
-        geo ?: context.assets.open("geoip-v4.bin").use { GeoIp.load(it) }.also { geo = it }
-    }
-}
 
 class LockVpnService : VpnService() {
     companion object {
@@ -70,6 +61,8 @@ class LockVpnService : VpnService() {
     private var engineThread: Thread? = null
     private val main = Handler(Looper.getMainLooper())
     private var ticks = 0
+    /** Start/stop run here, one at a time, off the main thread. */
+    private val worker = java.util.concurrent.Executors.newSingleThreadExecutor()
 
     private val updater = object : Runnable {
         override fun run() {
@@ -82,18 +75,19 @@ class LockVpnService : VpnService() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (intent?.action == ACTION_STOP) {
-            stopFilter()
+            worker.execute { stopFilter() }
             return START_NOT_STICKY
         }
         goForeground(getString(R.string.notif_starting))
-        if (!running) startFilter()
+        worker.execute { if (!running) startFilter() }
         return START_STICKY
     }
 
     private fun startFilter() {
         try {
             Prefs.load(this)
-            val geo = Geo.get(this)
+            GeoStore.cities(this) // unpacks the city table on first run
+            val geo = GeoStore.lookup(this)
             val games = installedGames(this)
             if (games.isEmpty()) throw IllegalStateException(getString(R.string.err_no_game))
 
@@ -146,6 +140,7 @@ class LockVpnService : VpnService() {
                 else getString(R.string.event_started, cfg.countries.joinToString(", ") { Countries.label(it) })
             )
             main.post(updater)
+            main.post { notifyStatus() }
         } catch (e: Exception) {
             lastError = e.message ?: e.toString()
             Monitor.event("⚠️ " + lastError)
@@ -174,12 +169,13 @@ class LockVpnService : VpnService() {
     }
 
     override fun onRevoke() {
-        stopFilter()
+        worker.execute { stopFilter() }
         super.onRevoke()
     }
 
     override fun onDestroy() {
         if (running) stopFilter()
+        worker.shutdown()
         super.onDestroy()
     }
 

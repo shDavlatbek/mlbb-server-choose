@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="subtitle">Blocks every Mobile Legends game server except the servers of the country you choose</string>
-    <string name="allowed_country">Allowed country</string>
+    <string name="subtitle">Blocks every Mobile Legends game server except the servers of the country and city you choose</string>
+    <string name="allowed_country">Allowed country and city</string>
     <string name="no_country">Not chosen — the filter only shows servers</string>
     <string name="choose_country">Choose country</string>
     <string name="mode_title">Blocking mode</string>
@@ -48,7 +48,7 @@
     <string name="seen_in_game">servers seen: %1$d</string>
     <string name="done">Done</string>
     <string name="reset">Reset</string>
-    <string name="footer">Country by IP: IP to Country Lite database by DB-IP.com (CC BY 4.0), version %1$s. The app is a local VPN for Mobile Legends only: traffic is not sent anywhere, everything is filtered on the phone.</string>
+    <string name="footer">Country and city by IP: IP to Country Lite and IP to City Lite databases by DB-IP.com (CC BY 4.0), version %1$s. The app is a local VPN for Mobile Legends only: traffic is not sent anywhere, everything is filtered on the phone.</string>
     <string name="err_no_game">Mobile Legends is not installed</string>
     <string name="err_no_permission">No VPN permission</string>
     <string name="warn_no_game">Mobile Legends was not found. Supported: com.mobile.legends, com.mobilelegends.hwag, com.mobilelegends.mi</string>
@@ -63,4 +63,23 @@
     <string name="event_stopped">Filter off</string>
     <string name="event_rules">Settings changed, re-checking live connections</string>
     <string name="tip_restart">Tip: after changing the country restart matchmaking, or better the game itself.</string>
+
+    <string name="choose_city">Choose city</string>
+    <string name="all_cities">all cities</string>
+    <string name="city_title">City — %1$s</string>
+    <string name="city_hint">Tick the cities whose servers should stay open. Nothing ticked means the whole country is open. Cities where game servers were already seen are on top.</string>
+    <string name="city_loading">Loading city database…</string>
+    <string name="city_region">%1$s (region)</string>
+    <string name="city_error">Could not load the city database: %1$s</string>
+    <string name="whole_country">Whole country</string>
+    <string name="seen_ping">servers seen: %1$d · ping from %2$d ms</string>
+    <string name="ping_button">Ping</string>
+    <string name="ping_lost">no reply</string>
+    <string name="ping_value">📶 %1$d ms</string>
+    <string name="ping_none">📶 no reply</string>
+    <string name="pinging">Measuring ping…</string>
+    <string name="server_allow_city">Keep only this city: %1$s</string>
+    <string name="need_country">Choose a country first</string>
+    <string name="pick_country_for_city">Choose the city for which country?</string>
+    <string name="search_city_hint">Search city…</string>
 </resources>

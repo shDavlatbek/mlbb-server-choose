@@ -35,6 +35,11 @@
             android:exported="false"
             android:windowSoftInputMode="adjustResize" />
 
+        <activity
+            android:name=".ui.CityActivity"
+            android:exported="false"
+            android:windowSoftInputMode="adjustResize" />
+
         <service
             android:name=".vpn.LockVpnService"
             android:exported="false"

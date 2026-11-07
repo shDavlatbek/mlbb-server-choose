@@ -15,16 +15,17 @@ import android.widget.ListView
 import android.widget.TextView
 import io.github.shdavlatbek.mlbblock.R
 import io.github.shdavlatbek.mlbblock.net.Countries
-import io.github.shdavlatbek.mlbblock.vpn.Geo
+import io.github.shdavlatbek.mlbblock.vpn.GeoStore
 import io.github.shdavlatbek.mlbblock.vpn.LockVpnService
 import io.github.shdavlatbek.mlbblock.vpn.Monitor
+import io.github.shdavlatbek.mlbblock.vpn.Pinger
 import io.github.shdavlatbek.mlbblock.vpn.Prefs
 import java.text.Collator
 import java.util.Locale
 
 /** Pick one (or several) countries whose game servers stay open. */
 class CountryActivity : Activity() {
-    private class Item(val code: String, val name: String, val seen: Int)
+    private class Item(val code: String, val name: String, val seen: Int, val ping: Int)
 
     private val selected = HashSet<String>()
     private var all: List<Item> = emptyList()
@@ -38,13 +39,17 @@ class CountryActivity : Activity() {
         selected.addAll(Prefs.current.countries)
 
         // how many game servers we have seen per country: those go first
-        val seen = Monitor.snapshot().filter { it.isGame }.groupingBy { it.country }.eachCount()
+        val game = Monitor.snapshot().filter { it.isGame }
+        Pinger.pingAll(game)
+        val seen = game.groupingBy { it.country }.eachCount()
+        val bestPing = game.groupBy { it.country }
+            .mapValues { (_, list) -> list.map { it.latency }.filter { it >= 0 }.minOrNull() ?: -1 }
         val codes = HashSet<String>()
         codes.addAll(Locale.getISOCountries())
-        try { codes.addAll(Geo.get(this).allCountries()) } catch (_: Exception) {}
+        try { codes.addAll(GeoStore.countries(this).allCountries()) } catch (_: Exception) {}
         val collator = Collator.getInstance()
         all = codes.filter { it.length == 2 }
-            .map { Item(it, Countries.name(it), seen[it] ?: 0) }
+            .map { Item(it, Countries.name(it), seen[it] ?: 0, bestPing[it] ?: -1) }
             .sortedWith { a, b ->
                 when {
                     (a.seen > 0) != (b.seen > 0) -> if (a.seen > 0) -1 else 1
@@ -103,7 +108,8 @@ class CountryActivity : Activity() {
             val note = v.findViewById<TextView>(R.id.note)
             if (item.seen > 0) {
                 note.visibility = View.VISIBLE
-                note.text = getString(R.string.seen_in_game, item.seen)
+                note.text = if (item.ping >= 0) getString(R.string.seen_ping, item.seen, item.ping)
+                else getString(R.string.seen_in_game, item.seen)
             } else {
                 note.visibility = View.GONE
             }

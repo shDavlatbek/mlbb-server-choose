@@ -13,6 +13,12 @@ import io.github.shdavlatbek.mlbblock.ui.CountryActivity
 import io.github.shdavlatbek.mlbblock.ui.MainActivity
 import io.github.shdavlatbek.mlbblock.vpn.Monitor
 import io.github.shdavlatbek.mlbblock.vpn.Prefs
+import io.github.shdavlatbek.mlbblock.vpn.ServerEntry
+import io.github.shdavlatbek.mlbblock.vpn.GeoStore
+import io.github.shdavlatbek.mlbblock.ui.CityActivity
+import android.content.Intent
+import android.os.Looper
+import org.robolectric.Shadows.shadowOf
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -47,13 +53,13 @@ class UiSmokeTest {
     @Test
     fun mainScreenWithServers() {
         val ctx = RuntimeEnvironment.getApplication()
-        Prefs.update(ctx) { it.copy(countries = setOf("UZ")) }
-        Monitor.flowStarted(Ip.parse("213.230.64.10")!!, "UZ", PROTO_UDP, 5521, TrafficClass.GAME, Verdict.ALLOW_COUNTRY)
-            .also { e -> repeat(120) { Monitor.out(e); Monitor.inbound(e) }; Monitor.rtt(e, 18) }
-        Monitor.flowStarted(Ip.parse("3.120.0.1")!!, "DE", PROTO_UDP, 5003, TrafficClass.GAME, Verdict.BLOCK_COUNTRY)
-            .also { e -> repeat(40) { Monitor.drop(e) } }
-        Monitor.flowStarted(Ip.parse("95.46.1.1")!!, "RU", PROTO_UDP, 30191, TrafficClass.GAME, Verdict.BLOCK_COUNTRY)
-            .also { e -> repeat(12) { Monitor.drop(e) } }
+        Prefs.update(ctx) { it.copy(countries = setOf("UZ", "RU"), cities = mapOf("RU" to setOf("St Petersburg"))) }
+        Monitor.flowStarted(Ip.parse("213.230.64.10")!!, "UZ", "Tashkent", PROTO_UDP, 5521, TrafficClass.GAME, Verdict.ALLOW_COUNTRY)
+            .also { e -> repeat(120) { Monitor.out(e); Monitor.inbound(e) }; Monitor.ping(e, 18) }
+        Monitor.flowStarted(Ip.parse("3.120.0.1")!!, "DE", "Frankfurt am Main", PROTO_UDP, 5003, TrafficClass.GAME, Verdict.BLOCK_COUNTRY)
+            .also { e -> repeat(40) { Monitor.drop(e) }; Monitor.ping(e, 96) }
+        Monitor.flowStarted(Ip.parse("95.46.1.1")!!, "RU", "Moscow", PROTO_UDP, 30191, TrafficClass.GAME, Verdict.BLOCK_COUNTRY)
+            .also { e -> repeat(12) { Monitor.drop(e) }; Monitor.ping(e, ServerEntry.PING_LOST) }
         val activity = Robolectric.buildActivity(MainActivity::class.java).setup().get()
         val root = activity.window.decorView.findViewById<View>(android.R.id.content)
         val text = activity.findViewById<TextView>(R.id.countries).text.toString()
@@ -63,11 +69,32 @@ class UiSmokeTest {
 
     @Test
     fun countryPicker() {
-        Monitor.flowStarted(Ip.parse("213.230.64.11")!!, "UZ", PROTO_UDP, 5521, TrafficClass.GAME, Verdict.ALLOW_COUNTRY)
-        Monitor.flowStarted(Ip.parse("3.120.0.2")!!, "DE", PROTO_UDP, 5003, TrafficClass.GAME, Verdict.BLOCK_COUNTRY)
+        Monitor.flowStarted(Ip.parse("213.230.64.11")!!, "UZ", "Tashkent", PROTO_UDP, 5521, TrafficClass.GAME, Verdict.ALLOW_COUNTRY)
+        Monitor.flowStarted(Ip.parse("3.120.0.2")!!, "DE", "Frankfurt am Main", PROTO_UDP, 5003, TrafficClass.GAME, Verdict.BLOCK_COUNTRY)
         val activity = Robolectric.buildActivity(CountryActivity::class.java).setup().get()
         val list = activity.findViewById<ListView>(R.id.list)
         assertTrue(list.adapter.count > 200)
         shot(activity.window.decorView.findViewById(android.R.id.content), "countries", fullHeight = false)
+    }
+
+    @Test
+    fun cityPicker() {
+        val ctx = RuntimeEnvironment.getApplication()
+        Prefs.update(ctx) { it.copy(countries = setOf("RU"), cities = mapOf("RU" to setOf("St Petersburg"))) }
+        Monitor.flowStarted(Ip.parse("95.46.1.2")!!, "RU", "Moscow", PROTO_UDP, 5521, TrafficClass.GAME, Verdict.BLOCK_CITY)
+            .also { Monitor.ping(it, 41) }
+        Monitor.flowStarted(Ip.parse("2.16.21.2")!!, "RU", "St Petersburg", PROTO_UDP, 5521, TrafficClass.GAME, Verdict.ALLOW_COUNTRY)
+            .also { Monitor.ping(it, 23) }
+        GeoStore.cities(ctx) // unpack before the screen asks for it
+        val intent = Intent(ctx, CityActivity::class.java).putExtra("country", "RU")
+        val activity = Robolectric.buildActivity(CityActivity::class.java, intent).setup().get()
+        val list = activity.findViewById<ListView>(R.id.list)
+        val end = System.currentTimeMillis() + 10_000
+        while (list.adapter.count == 0 && System.currentTimeMillis() < end) {
+            Thread.sleep(50)
+            shadowOf(Looper.getMainLooper()).idle()
+        }
+        assertTrue(list.adapter.count > 20)
+        shot(activity.window.decorView.findViewById(android.R.id.content), "cities", fullHeight = false)
     }
 }

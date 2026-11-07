@@ -31,9 +31,10 @@ import io.github.shdavlatbek.mlbblock.net.PROTO_TCP
 import io.github.shdavlatbek.mlbblock.net.PROTO_UDP
 import io.github.shdavlatbek.mlbblock.net.Policy
 import io.github.shdavlatbek.mlbblock.net.Verdict
-import io.github.shdavlatbek.mlbblock.vpn.Geo
+import io.github.shdavlatbek.mlbblock.vpn.GeoStore
 import io.github.shdavlatbek.mlbblock.vpn.LockVpnService
 import io.github.shdavlatbek.mlbblock.vpn.Monitor
+import io.github.shdavlatbek.mlbblock.vpn.Pinger
 import io.github.shdavlatbek.mlbblock.vpn.Prefs
 import io.github.shdavlatbek.mlbblock.vpn.ServerEntry
 import java.text.SimpleDateFormat
@@ -56,6 +57,8 @@ class MainActivity : Activity() {
     private lateinit var log: TextView
     private lateinit var showBtn: Button
     private lateinit var modeGroup: RadioGroup
+    private lateinit var pingStatus: TextView
+    private var lastAutoPing = 0L
 
     private var showAll = false
     private val handler = Handler(Looper.getMainLooper())
@@ -74,6 +77,7 @@ class MainActivity : Activity() {
         setContentView(R.layout.activity_main)
         Prefs.load(this)
         Monitor.loadHistory(this)
+        GeoStore.warmUp(this)
 
         countries = findViewById(R.id.countries)
         toggle = findViewById(R.id.btn_toggle)
@@ -84,9 +88,15 @@ class MainActivity : Activity() {
         log = findViewById(R.id.log)
         showBtn = findViewById(R.id.btn_show)
         modeGroup = findViewById(R.id.mode)
+        pingStatus = findViewById(R.id.ping_status)
 
         findViewById<Button>(R.id.btn_country).setOnClickListener {
             startActivity(Intent(this, CountryActivity::class.java))
+        }
+        findViewById<Button>(R.id.btn_city).setOnClickListener { chooseCity() }
+        findViewById<Button>(R.id.btn_ping).setOnClickListener {
+            Pinger.pingAll(visibleServers(), force = true)
+            refresh()
         }
         toggle.setOnClickListener { onToggle() }
         showBtn.setOnClickListener {
@@ -107,7 +117,7 @@ class MainActivity : Activity() {
         }
 
         val version = try {
-            Geo.get(this).version.toString().let { "${it.substring(0, 4)}-${it.substring(4, 6)}" }
+            GeoStore.countries(this).version.toString().let { "${it.substring(0, 4)}-${it.substring(4, 6)}" }
         } catch (_: Exception) {
             "?"
         }
@@ -174,8 +184,13 @@ class MainActivity : Activity() {
     private fun refresh() {
         val cfg = Prefs.current
         countries.text = if (cfg.countries.isEmpty()) getString(R.string.no_country)
-        else cfg.countries.sortedBy { Countries.name(it) }.joinToString("\n") { Countries.label(it) }
-        countries.textSize = if (cfg.countries.isEmpty()) 15f else 20f
+        else cfg.countries.sortedBy { Countries.name(it) }.joinToString("\n") { cc ->
+            val cities = cfg.cities[cc].orEmpty()
+            val where = if (cities.isEmpty()) getString(R.string.all_cities)
+            else cities.map { CityActivity.label(this, it) }.sorted().joinToString(", ")
+            "${Countries.label(cc)} — $where"
+        }
+        countries.textSize = if (cfg.countries.isEmpty()) 15f else 18f
 
         val running = LockVpnService.running
         toggle.setText(if (running) R.string.stop else R.string.start)
@@ -193,9 +208,15 @@ class MainActivity : Activity() {
         status.text = sb
 
         val m = if (running) Monitor.currentMatch() else null
-        match.text = if (m != null) getString(R.string.match_now, Ip.str(m.ip), Countries.label(m.country))
+        match.text = if (m != null) getString(R.string.match_now, Ip.str(m.ip), place(m))
         else if (running) getString(R.string.match_none) else ""
 
+        val now = System.currentTimeMillis()
+        if (now - lastAutoPing > 15_000) {
+            lastAutoPing = now
+            Pinger.pingAll(visibleServers())
+        }
+        pingStatus.visibility = if (Pinger.isBusy) View.VISIBLE else View.GONE
         renderServers(cfg)
 
         val ev = Monitor.events()
@@ -214,7 +235,27 @@ class MainActivity : Activity() {
             PROTO_TCP -> ports.firstOrNull { Policy.isGameTcpPort(it) } ?: ports.firstOrNull() ?: 0
             else -> 0
         }
-        return Policy.decide(cfg, proto, e.ip, port, e.country)
+        return Policy.decide(cfg, proto, e.ip, port, e.country, e.city)
+    }
+
+    private fun visibleServers(): List<ServerEntry> =
+        Monitor.snapshot().filter { it.isGame }.sortedByDescending { it.lastSeen }.take(MAX_ROWS)
+
+    private fun place(e: ServerEntry): String {
+        val city = e.city
+        return if (city != null) "${Countries.label(e.country)}, ${CityActivity.label(this, city)}" else Countries.label(e.country)
+    }
+
+    private fun chooseCity() {
+        val list = Prefs.current.countries.sortedBy { Countries.name(it) }
+        when (list.size) {
+            0 -> Toast.makeText(this, R.string.need_country, Toast.LENGTH_SHORT).show()
+            1 -> CityActivity.open(this, list[0])
+            else -> AlertDialog.Builder(this)
+                .setTitle(R.string.pick_country_for_city)
+                .setItems(list.map { Countries.label(it) }.toTypedArray()) { _, i -> CityActivity.open(this, list[i]) }
+                .show()
+        }
     }
 
     private fun renderServers(cfg: FilterConfig) {
@@ -234,22 +275,27 @@ class MainActivity : Activity() {
 
     private fun bindRow(v: View, e: ServerEntry, verdict: Verdict) {
         v.findViewById<TextView>(R.id.flag).text = Countries.flag(e.country)
-        v.findViewById<TextView>(R.id.line1).text = "${Ip.str(e.ip)}  ·  ${Countries.name(e.country)}"
+        val city = e.city?.let { ", " + CityActivity.label(this, it) } ?: ""
+        v.findViewById<TextView>(R.id.line1).text = Countries.name(e.country) + city
         val parts = ArrayList<String>()
         val ports = e.portsText()
+        parts.add(Ip.str(e.ip))
         parts.add(e.protoText() + if (ports.isNotEmpty()) " $ports" else "")
+        when {
+            e.latency >= 0 -> parts.add(getString(R.string.ping_value, e.latency))
+            e.pingMs == ServerEntry.PING_LOST -> parts.add(getString(R.string.ping_none))
+        }
         if (e.fromHistory) {
             parts.add(getString(R.string.seen_before, dateFmt.format(Date(e.lastSeen))))
         } else {
             parts.add("↑${e.pktOut} ↓${e.pktIn}")
             if (e.dropped > 0) parts.add("⛔ ${e.dropped}")
-            if (e.rttMs >= 0) parts.add(getString(R.string.ping_ms, e.rttMs))
         }
         v.findViewById<TextView>(R.id.line2).text = parts.joinToString("  ·  ")
 
         val chip = v.findViewById<TextView>(R.id.verdict)
         val (text, color) = when (verdict) {
-            Verdict.BLOCK_COUNTRY, Verdict.BLOCK_MANUAL -> R.string.v_blocked to R.color.bad
+            Verdict.BLOCK_COUNTRY, Verdict.BLOCK_CITY, Verdict.BLOCK_MANUAL -> R.string.v_blocked to R.color.bad
             Verdict.ALLOW_COUNTRY -> R.string.v_open to R.color.ok
             Verdict.ALLOW_MANUAL -> R.string.v_manual to R.color.ok
             Verdict.ALLOW_NORMAL, Verdict.ALLOW_LOCAL -> R.string.v_normal to R.color.neutral
@@ -278,6 +324,12 @@ class MainActivity : Activity() {
                 changeConfig { c -> c.copy(countries = c.countries + e.country) }
             })
         }
+        val city = e.city
+        if (city != null && e.country in cfg.countries && cfg.cities[e.country].orEmpty() != setOf(city)) {
+            items.add(getString(R.string.server_allow_city, CityActivity.label(this, city)) to {
+                changeConfig { c -> c.copy(cities = c.cities + (e.country to setOf(city))) }
+            })
+        }
         if (single in cfg.allow || single in cfg.block) {
             items.add(getString(R.string.server_unrule) to {
                 changeConfig { c -> c.copy(allow = c.allow - single, block = c.block - single) }
@@ -288,7 +340,7 @@ class MainActivity : Activity() {
             Toast.makeText(this, R.string.copied, Toast.LENGTH_SHORT).show()
         })
         AlertDialog.Builder(this)
-            .setTitle("${Countries.flag(e.country)} $ip")
+            .setTitle("${Countries.flag(e.country)} $ip — ${place(e)}")
             .setItems(items.map { it.first }.toTypedArray()) { _, which -> items[which].second() }
             .show()
     }

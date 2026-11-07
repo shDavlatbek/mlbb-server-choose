@@ -1,7 +1,7 @@
 package io.github.shdavlatbek.mlbblock.vpn
 
 import io.github.shdavlatbek.mlbblock.net.FilterConfig
-import io.github.shdavlatbek.mlbblock.net.GeoIp
+import io.github.shdavlatbek.mlbblock.net.GeoLookup
 import io.github.shdavlatbek.mlbblock.net.Ipv4
 import io.github.shdavlatbek.mlbblock.net.PROTO_ICMP
 import io.github.shdavlatbek.mlbblock.net.PROTO_TCP
@@ -56,7 +56,7 @@ internal class UdpFlow(
  * handed over with [submit]. Nothing here depends on Android, so it is tested on the JVM.
  */
 class Engine(
-    private val geo: GeoIp,
+    private val geo: GeoLookup,
     private val config: () -> FilterConfig,
     internal val protector: Protector,
     private val tunOut: (ByteArray) -> Unit,
@@ -179,8 +179,9 @@ class Engine(
         if (f == null) {
             if (udp.size >= MAX_UDP) evictUdp()
             val country = geo.country(dst)
-            val v = Policy.decide(cfg, PROTO_UDP, dst, p.dstPort, country)
-            val entry = Monitor.flowStarted(dst, country, PROTO_UDP, p.dstPort, Policy.classify(PROTO_UDP, p.dstPort), v)
+            val city = geo.city(dst, country)
+            val v = Policy.decide(cfg, PROTO_UDP, dst, p.dstPort, country, city)
+            val entry = Monitor.flowStarted(dst, country, city, PROTO_UDP, p.dstPort, Policy.classify(PROTO_UDP, p.dstPort), v)
             f = UdpFlow(key, p.src, p.srcPort, dst, p.dstPort, entry)
             f.blocked = v.blocked
             f.revision = cfg.revision
@@ -221,9 +222,9 @@ class Engine(
 
     private fun recheckUdp(f: UdpFlow, cfg: FilterConfig) {
         f.revision = cfg.revision
-        val v = Policy.decide(cfg, PROTO_UDP, f.dstIp, f.dstPort, f.entry.country)
+        val v = Policy.decide(cfg, PROTO_UDP, f.dstIp, f.dstPort, f.entry.country, cityOf(f.entry))
         if (v.blocked == f.blocked) return
-        Monitor.flowStarted(f.dstIp, f.entry.country, PROTO_UDP, f.dstPort, Policy.classify(PROTO_UDP, f.dstPort), v)
+        Monitor.flowStarted(f.dstIp, f.entry.country, f.entry.city, PROTO_UDP, f.dstPort, Policy.classify(PROTO_UDP, f.dstPort), v)
         f.blocked = v.blocked
         if (f.blocked) {
             f.channel?.let { ch -> try { ch.close() } catch (_: Exception) {} }
@@ -273,8 +274,9 @@ class Engine(
         if (flags and Tcp.SYN != 0 && flags and Tcp.ACK == 0) {
             val cfg = config()
             val country = geo.country(p.dst)
-            val v = Policy.decide(cfg, PROTO_TCP, p.dst, p.dstPort, country)
-            val entry = Monitor.flowStarted(p.dst, country, PROTO_TCP, p.dstPort, Policy.classify(PROTO_TCP, p.dstPort), v)
+            val city = geo.city(p.dst, country)
+            val v = Policy.decide(cfg, PROTO_TCP, p.dst, p.dstPort, country, city)
+            val entry = Monitor.flowStarted(p.dst, country, city, PROTO_TCP, p.dstPort, Policy.classify(PROTO_TCP, p.dstPort), v)
             if (v.blocked || tcp.size >= MAX_TCP) {
                 if (v.blocked) Monitor.drop(entry)
                 tunWrite(Packets.tcp(p.dst, p.dstPort, p.src, p.srcPort, 0, p.tcpSeq + 1, Tcp.RST or Tcp.ACK, 0))
@@ -308,14 +310,19 @@ class Engine(
         val dst = p.dst
         val cfg = config()
         val country = geo.country(dst)
-        val v = Policy.decide(cfg, PROTO_ICMP, dst, 0, country)
-        val entry = Monitor.flowStarted(dst, country, PROTO_ICMP, 0, Policy.classify(PROTO_ICMP, 0), v)
+        val city = geo.city(dst, country)
+        val v = Policy.decide(cfg, PROTO_ICMP, dst, 0, country, city)
+        val entry = Monitor.flowStarted(dst, country, city, PROTO_ICMP, 0, Policy.classify(PROTO_ICMP, 0), v)
         if (v.blocked) {
             Monitor.drop(entry)
             return
         }
         icmp?.echo(p, entry)
     }
+
+    /** The entry's city, looked up again if the city table was not ready when the flow began. */
+    private fun cityOf(e: ServerEntry): String? =
+        e.city ?: geo.city(e.ip, e.country)?.also { e.city = it }
 
     // ---------------- timers ----------------
 
@@ -327,9 +334,9 @@ class Engine(
             for (f in tcp.values.toList()) {
                 if (f.revision == cfg.revision) continue
                 f.revision = cfg.revision
-                val v = Policy.decide(cfg, PROTO_TCP, f.dstIp, f.dstPort, f.entry.country)
+                val v = Policy.decide(cfg, PROTO_TCP, f.dstIp, f.dstPort, f.entry.country, cityOf(f.entry))
                 if (v.blocked) {
-                    Monitor.flowStarted(f.dstIp, f.entry.country, PROTO_TCP, f.dstPort, Policy.classify(PROTO_TCP, f.dstPort), v)
+                    Monitor.flowStarted(f.dstIp, f.entry.country, f.entry.city, PROTO_TCP, f.dstPort, Policy.classify(PROTO_TCP, f.dstPort), v)
                     f.kill()
                 }
             }

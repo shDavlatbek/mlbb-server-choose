@@ -29,6 +29,7 @@ enum class Verdict(val blocked: Boolean) {
     ALLOW_LOCAL(false),
     ALLOW_FILTER_OFF(false),
     BLOCK_COUNTRY(true),
+    BLOCK_CITY(true),
     BLOCK_MANUAL(true),
 }
 
@@ -43,6 +44,8 @@ data class Cidr(val net: Int, val len: Int) {
 
 data class FilterConfig(
     val countries: Set<String> = emptySet(),
+    /** Optional city filter per country (keys from [GeoCity]); missing or empty = whole country. */
+    val cities: Map<String, Set<String>> = emptyMap(),
     val mode: Mode = Mode.STRICT,
     val allow: List<Cidr> = emptyList(),
     val block: List<Cidr> = emptyList(),
@@ -70,7 +73,7 @@ object Policy {
         else -> TrafficClass.NORMAL
     }
 
-    fun decide(cfg: FilterConfig, proto: Int, ip: Int, port: Int, country: String): Verdict {
+    fun decide(cfg: FilterConfig, proto: Int, ip: Int, port: Int, country: String, city: String? = null): Verdict {
         if (cfg.block.any { it.contains(ip) }) return Verdict.BLOCK_MANUAL
         if (Ip.isPrivate(ip)) return Verdict.ALLOW_LOCAL
         if (cfg.allow.any { it.contains(ip) }) return Verdict.ALLOW_MANUAL
@@ -78,6 +81,9 @@ object Policy {
         if (cls == TrafficClass.NORMAL) return Verdict.ALLOW_NORMAL
         if (cls == TrafficClass.OTHER_UDP && cfg.mode == Mode.PORTS) return Verdict.ALLOW_NORMAL
         if (cfg.countries.isEmpty()) return Verdict.ALLOW_FILTER_OFF
-        return if (country in cfg.countries) Verdict.ALLOW_COUNTRY else Verdict.BLOCK_COUNTRY
+        if (country !in cfg.countries) return Verdict.BLOCK_COUNTRY
+        val wanted = cfg.cities[country]
+        if (!wanted.isNullOrEmpty() && (city == null || city !in wanted)) return Verdict.BLOCK_CITY
+        return Verdict.ALLOW_COUNTRY
     }
 }

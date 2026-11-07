@@ -2,6 +2,7 @@ package io.github.shdavlatbek.mlbblock
 
 import io.github.shdavlatbek.mlbblock.net.Cidr
 import io.github.shdavlatbek.mlbblock.net.FilterConfig
+import io.github.shdavlatbek.mlbblock.net.Geo
 import io.github.shdavlatbek.mlbblock.net.GeoIp
 import io.github.shdavlatbek.mlbblock.net.Ip
 import io.github.shdavlatbek.mlbblock.net.Ipv4
@@ -10,6 +11,7 @@ import io.github.shdavlatbek.mlbblock.net.PROTO_TCP
 import io.github.shdavlatbek.mlbblock.net.PROTO_UDP
 import io.github.shdavlatbek.mlbblock.net.Packets
 import io.github.shdavlatbek.mlbblock.net.Tcp
+import io.github.shdavlatbek.mlbblock.net.Verdict
 import io.github.shdavlatbek.mlbblock.vpn.Engine
 import io.github.shdavlatbek.mlbblock.vpn.Monitor
 import io.github.shdavlatbek.mlbblock.vpn.Protector
@@ -51,8 +53,8 @@ class EngineTest {
 
     @Before
     fun setUp() {
-        val geo = File("src/main/assets/geoip-v4.bin").inputStream().use { GeoIp.load(it) }
-        engine = Engine(geo, { cfg }, NoProtect, { out.add(it) })
+        val countries = File("src/main/assets/geoip-v4.bin").inputStream().use { GeoIp.load(it) }
+        engine = Engine(Geo(countries) { GeoCityTest.db }, { cfg }, NoProtect, { out.add(it) })
         loop = thread(isDaemon = true) { engine.run() }
     }
 
@@ -115,6 +117,19 @@ class EngineTest {
         repeat(3) { engine.submit(Packets.udp(app, 40001, de, 5501, data, 0, data.size)) }
         assertNull(next(500))
         assertTrue(waitFor { (Monitor.snapshot().firstOrNull { it.ip == de }?.dropped ?: 0) >= 3 })
+    }
+
+    @Test
+    fun udpToAnotherCityIsDropped() {
+        cfg = FilterConfig(countries = setOf("RU"), cities = mapOf("RU" to setOf("St Petersburg")), revision = 5)
+        val moscow = Ip.parse("95.46.1.1")!!
+        val data = ByteArray(40)
+        repeat(2) { engine.submit(Packets.udp(app, 40002, moscow, 5521, data, 0, data.size)) }
+        assertNull(next(500))
+        assertTrue(waitFor {
+            val e = Monitor.snapshot().firstOrNull { it.ip == moscow }
+            e != null && e.city == "Moscow" && e.verdict == Verdict.BLOCK_CITY && e.dropped >= 2
+        })
     }
 
     // ---------------- TCP ----------------

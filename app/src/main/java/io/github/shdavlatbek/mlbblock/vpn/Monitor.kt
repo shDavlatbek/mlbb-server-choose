@@ -2,6 +2,7 @@ package io.github.shdavlatbek.mlbblock.vpn
 
 import android.content.Context
 import io.github.shdavlatbek.mlbblock.net.Countries
+import io.github.shdavlatbek.mlbblock.net.GeoCity
 import io.github.shdavlatbek.mlbblock.net.Ip
 import io.github.shdavlatbek.mlbblock.net.PROTO_ICMP
 import io.github.shdavlatbek.mlbblock.net.PROTO_TCP
@@ -16,7 +17,7 @@ import java.util.Date
 import java.util.Locale
 
 /** One remote address the game talked to. Counters are written by the VPN threads only. */
-class ServerEntry(val ip: Int, val country: String) {
+class ServerEntry(val ip: Int, val country: String, @Volatile var city: String? = null) {
     @Volatile var cls: TrafficClass = TrafficClass.NORMAL
     @Volatile var verdict: Verdict = Verdict.ALLOW_NORMAL
     @Volatile var protoMask = 0
@@ -27,12 +28,24 @@ class ServerEntry(val ip: Int, val country: String) {
     @Volatile var firstSeen = 0L
     @Volatile var lastSeen = 0L
     @Volatile var lastIn = 0L
+    /** ICMP round trip seen while the game itself pinged this server. */
     @Volatile var rttMs = -1
+    /** Our own ping: >= 0 ms, [PING_NONE] not measured yet, [PING_LOST] no reply. */
+    @Volatile var pingMs = PING_NONE
+    @Volatile var pingAt = 0L
     @Volatile var lastEventAt = 0L
     /** Loaded from history, not seen in this session yet. */
     @Volatile var fromHistory = false
 
     val isGame get() = cls == TrafficClass.GAME || cls == TrafficClass.OTHER_UDP || cls == TrafficClass.ICMP
+
+    /** Best known latency in ms, or -1. */
+    val latency: Int get() = if (pingMs >= 0) pingMs else rttMs
+
+    companion object {
+        const val PING_NONE = -1
+        const val PING_LOST = -2
+    }
 
     fun protoText(): String = buildList {
         if (protoMask and 1 != 0) add("UDP")
@@ -80,15 +93,16 @@ object Monitor {
     }
 
     /** Called once per new flow (not per packet). */
-    fun flowStarted(ip: Int, country: String, proto: Int, port: Int, cls: TrafficClass, verdict: Verdict): ServerEntry {
+    fun flowStarted(ip: Int, country: String, city: String?, proto: Int, port: Int, cls: TrafficClass, verdict: Verdict): ServerEntry {
         val now = System.currentTimeMillis()
         val e: ServerEntry
         var isNewForEvents = false
         synchronized(this) {
             e = entries.getOrPut(ip) {
                 if (entries.size >= MAX_ENTRIES) trim()
-                ServerEntry(ip, country).also { it.firstSeen = now }
+                ServerEntry(ip, country, city).also { it.firstSeen = now }
             }
+            if (e.city == null && city != null) e.city = city
             if (e.fromHistory) e.fromHistory = false
             if (rank(cls) >= rank(e.cls)) e.cls = cls
             val oldVerdict = e.verdict
@@ -108,7 +122,8 @@ object Monitor {
             val p = when (proto) { PROTO_UDP -> "UDP"; PROTO_TCP -> "TCP"; PROTO_ICMP -> "ICMP"; else -> "IP$proto" }
             val where = if (proto == PROTO_ICMP) Ip.str(ip) else "${Ip.str(ip)}:$port"
             val mark = if (verdict.blocked) "⛔" else "✅"
-            event("$mark $p $where ${Countries.flag(country)} $country")
+            val place = if (city != null) "$country ${GeoCity.displayName(city)}" else country
+            event("$mark $p $where ${Countries.flag(country)} $place")
         }
         return e
     }
@@ -131,6 +146,17 @@ object Monitor {
 
     fun rtt(e: ServerEntry, ms: Int) {
         e.rttMs = ms
+    }
+
+    fun ping(e: ServerEntry, ms: Int) {
+        e.pingMs = ms
+        e.pingAt = System.currentTimeMillis()
+        if (e.isGame) dirty = true
+    }
+
+    /** Fills in cities for entries seen before the city table was ready. */
+    fun fillCities(lookup: (ServerEntry) -> String?) {
+        for (e in snapshot()) if (e.city == null) lookup(e)?.let { e.city = it; dirty = true }
     }
 
     fun event(text: String) {
@@ -176,13 +202,15 @@ object Monitor {
                     val o = arr.getJSONObject(i)
                     val ip = Ip.parse(o.getString("ip")) ?: continue
                     if (entries.containsKey(ip)) continue
-                    val e = ServerEntry(ip, o.optString("cc", "--"))
+                    val e = ServerEntry(ip, o.optString("cc", "--"), o.optString("city", "").ifEmpty { null })
                     e.cls = runCatching { TrafficClass.valueOf(o.optString("cls", "GAME")) }.getOrDefault(TrafficClass.GAME)
                     e.protoMask = o.optInt("proto", 1)
                     val ports = o.optJSONArray("ports")
                     if (ports != null) for (j in 0 until ports.length()) e.ports.add(ports.getInt(j))
                     e.firstSeen = o.optLong("first", 0)
                     e.lastSeen = o.optLong("last", 0)
+                    e.pingMs = o.optInt("ping", ServerEntry.PING_NONE)
+                    e.pingAt = o.optLong("pingAt", 0)
                     e.fromHistory = true
                     entries[ip] = e
                 }
@@ -199,6 +227,9 @@ object Monitor {
             arr.put(JSONObject().apply {
                 put("ip", Ip.str(e.ip))
                 put("cc", e.country)
+                e.city?.let { put("city", it) }
+                put("ping", e.pingMs)
+                put("pingAt", e.pingAt)
                 put("cls", e.cls.name)
                 put("proto", e.protoMask)
                 put("ports", JSONArray(synchronized(e.ports) { e.ports.toList() }))
